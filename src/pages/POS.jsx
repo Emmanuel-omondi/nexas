@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Search, Barcode, RefreshCw, Smartphone, Play, Plus, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Search, Barcode, RefreshCw, Smartphone, Play, Plus, AlertTriangle, ShieldCheck, ShoppingCart } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import { useCartStore } from '../store/cartStore'
+import { Html5Qrcode } from 'html5-qrcode'
 import { useAuthStore } from '../store/authStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { generateOrderNumber } from '../utils/formatters'
@@ -33,6 +34,86 @@ export default function POS() {
   // Camera Barcode Scanning States
   const [cameraOpen, setCameraOpen] = useState(false)
   const [scanToast, setScanToast]   = useState(null)
+  const [showCartDrawer, setShowCartDrawer] = useState(false)
+
+  const qrCodeRef = useRef(null)
+
+  useEffect(() => {
+    let html5QrCode = null
+
+    const startScanner = async () => {
+      // Small delay to ensure the DOM element #reader is mounted in the Modal
+      await new Promise(resolve => setTimeout(resolve, 350))
+      
+      const element = document.getElementById('reader')
+      if (!element) return
+
+      try {
+        html5QrCode = new Html5Qrcode('reader')
+        qrCodeRef.current = html5QrCode
+
+        const config = { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        }
+
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          config,
+          async (decodedText) => {
+            // Stop scanning immediately to prevent double scan
+            try {
+              if (html5QrCode && html5QrCode.isScanning) {
+                await html5QrCode.stop()
+              }
+            } catch (err) {
+              console.error('Failed to stop scanner on success:', err)
+            }
+            
+            playBeep()
+            
+            const matched = await db.products.where('barcode').equals(decodedText.trim()).first()
+            if (matched && matched.active) {
+              if (!activeShift) {
+                setShiftOpenModal(true)
+              } else {
+                cart.addItem(matched)
+              }
+              triggerScanToast(`Scanned: ${matched.name}`)
+            } else {
+              triggerScanToast(`Unknown Barcode: ${decodedText}`, true)
+            }
+            
+            setCameraOpen(false)
+          },
+          (errorMessage) => {
+            // Silent frame error
+          }
+        )
+      } catch (err) {
+        console.error('Failed to initialize or start camera scanner:', err)
+      }
+    }
+
+    if (cameraOpen) {
+      startScanner()
+    } else {
+      if (qrCodeRef.current && qrCodeRef.current.isScanning) {
+        qrCodeRef.current.stop().then(() => {
+          qrCodeRef.current = null
+        }).catch(err => {
+          console.error('Error stopping scanner on modal close:', err)
+        })
+      }
+    }
+
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(err => console.error('Cleanup stop failure:', err))
+      }
+    }
+  }, [cameraOpen, activeShift])
 
   // Live queries from IndexedDB
   const products   = useLiveQuery(() => db.products.toArray(), []) || []
@@ -227,17 +308,6 @@ export default function POS() {
     printReceipt({ ...order, id: orderId }, settings)
   }
 
-  // Trigger simulated camera scanning beep
-  const handleSimulatedScan = async (barcodeVal) => {
-    const matched = await db.products.where('barcode').equals(barcodeVal).first()
-    if (matched && matched.active) {
-      cart.addItem(matched)
-      playBeep()
-      triggerScanToast(`Simulated Scan: ${matched.name}`)
-    } else {
-      triggerScanToast(`No product matching barcode: ${barcodeVal}`, true)
-    }
-  }
 
   return (
     <div className="flex h-full gap-0 overflow-hidden relative">
@@ -322,6 +392,7 @@ export default function POS() {
         <div className="flex-1 overflow-y-auto">
           <ProductGrid
             products={filtered}
+            categories={categories}
             onAdd={(prod) => {
               if (!activeShift) {
                 setShiftOpenModal(true)
@@ -334,8 +405,8 @@ export default function POS() {
         </div>
       </div>
 
-      {/* Right: Cart */}
-      <div className="w-80 xl:w-96 flex-shrink-0 p-4 pl-0">
+      {/* Right: Cart (Desktop Sidebar) */}
+      <div className="hidden lg:block w-80 xl:w-96 flex-shrink-0 p-4 pl-0">
         <Cart onCheckout={() => {
           if (!activeShift) {
             setShiftOpenModal(true)
@@ -344,6 +415,55 @@ export default function POS() {
           setPayment(true)
         }} />
       </div>
+
+      {/* Floating Action Button (FAB) for Mobile Cart */}
+      <button
+        onClick={() => setShowCartDrawer(true)}
+        className="fixed bottom-6 right-6 z-45 lg:hidden p-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-full shadow-lg hover:from-blue-700 hover:to-indigo-700 active:scale-95 transition-all flex items-center justify-center"
+        title="Open shopping cart"
+      >
+        <div className="relative">
+          <ShoppingCart size={24} />
+          {cart.getItemCount() > 0 && (
+            <span className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center animate-bounce">
+              {cart.getItemCount()}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Mobile Cart Drawer Overlay */}
+      {showCartDrawer && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/40 flex justify-end lg:hidden animate-fade-in"
+          onClick={() => setShowCartDrawer(false)}
+        >
+          <div 
+            className="w-80 max-w-[90%] bg-white h-full shadow-2xl flex flex-col p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 border-b border-gray-150 pb-2">
+              <h3 className="font-bold text-gray-800 text-base">Shopping Cart</h3>
+              <button 
+                onClick={() => setShowCartDrawer(false)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-xl px-2 py-1"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <Cart onCheckout={() => {
+                if (!activeShift) {
+                  setShiftOpenModal(true)
+                  return
+                }
+                setPayment(true)
+                setShowCartDrawer(false)
+              }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment modal */}
       <PaymentModal
@@ -394,75 +514,20 @@ export default function POS() {
         </form>
       </Modal>
 
-      {/* Simulated Mobile Camera Barcode Scan Modal */}
+      {/* Real Camera Barcode Scan Modal */}
       <Modal
         isOpen={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        title="Simulated Camera Scanner"
+        title="Camera Barcode Scanner"
         size="md"
       >
-        <div className="space-y-5 py-2">
-          {/* Simulated viewscreen with scan target overlay */}
-          <div className="relative h-60 bg-gray-950 rounded-2xl overflow-hidden flex flex-col items-center justify-center border-4 border-gray-800">
-            {/* Animated Laser beam */}
-            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse-slow w-full" style={{ transform: 'translateY(-50%)' }} />
-            
-            {/* Corner brackets simulating targeting finder */}
-            <div className="absolute w-40 h-40 border-2 border-white/20 rounded-xl flex items-center justify-center">
-              <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-blue-500" />
-              <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-blue-500" />
-              <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-blue-500" />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-blue-500" />
-              
-              <Barcode size={48} className="text-white/30 animate-pulse" />
-            </div>
-            
-            <p className="absolute bottom-4 text-xs text-white/60 font-semibold tracking-wide">
-              [Mobile Device Viewfinder Simulated]
-            </p>
+        <div className="space-y-4 py-2">
+          <div className="relative bg-black rounded-2xl overflow-hidden border border-gray-200">
+            <div id="reader" className="w-full"></div>
           </div>
-
-          <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2 border border-blue-100">
-            <Smartphone size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-            <p>
-              On tablets/mobile devices, this utilizes native camera APIs. In this web environment, tap any product barcode below to simulate scanning!
-            </p>
-          </div>
-
-          {/* Preset scan targets to test */}
-          <div>
-            <p className="text-xs font-bold text-gray-700 mb-2">Simulate Barcode Hits</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { name: 'Grilled Chicken', code: '1001' },
-                { name: 'Unga Pembe 2kg', code: '2001' },
-                { name: 'Sugar 1kg', code: '2003' },
-                { name: 'USB-C Cable', code: '3001' },
-                { name: 'Phone Charger', code: '3002' },
-                { name: 'Coca-Cola 500ml', code: '6001' },
-                { name: 'Paracetamol', code: '8001' },
-              ].map(item => (
-                <button
-                  key={item.code}
-                  type="button"
-                  onClick={() => handleSimulatedScan(item.code)}
-                  className="px-3 py-2 text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all flex justify-between items-center group text-xs"
-                >
-                  <div>
-                    <p className="font-semibold text-gray-800 group-hover:text-blue-700">{item.name}</p>
-                    <p className="font-mono text-gray-400 text-[10px]">{item.code}</p>
-                  </div>
-                  <span className="h-5 px-1.5 bg-white border border-gray-200 text-gray-500 text-[10px] rounded flex items-center justify-center font-bold font-mono">
-                    SCAN
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="flex items-center gap-2 pt-2">
             <Button fullWidth onClick={() => setCameraOpen(false)} variant="secondary">
-              Close Camera View
+              Close Scanner
             </Button>
           </div>
         </div>

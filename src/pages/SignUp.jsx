@@ -1,20 +1,22 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Users2, UserPlus, Key, Mail, ShieldCheck, UserX,
-  ToggleLeft, ToggleRight, Edit2, Trash2, ArrowRight,
+  ToggleLeft, ToggleRight, ArrowRight,
   Search, Sparkles, LogIn, Lock, CheckCircle2, UserCheck
 } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/authStore'
 import Card, { CardHeader } from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import Badge from '../components/ui/Badge'
-import Modal from '../components/ui/Modal'
 
 export default function SignUp() {
   const navigate = useNavigate()
+  const { user: currentUser, isAuthenticated } = useAuthStore()
+  
   const [search, setSearch] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
   
@@ -23,14 +25,26 @@ export default function SignUp() {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('cashier')
   const [pin, setPin] = useState('')
+  const [isFirstUser, setIsFirstUser] = useState(false)
+  const [checkingAccess, setCheckingAccess] = useState(true)
 
-  // Edit Modal States
-  const [editModal, setEditModal] = useState(false)
-  const [editingUser, setEditingUser] = useState(null)
-  const [editName, setEditName] = useState('')
-  const [editEmail, setEditEmail] = useState('')
-  const [editRole, setEditRole] = useState('cashier')
-  const [editPin, setEditPin] = useState('')
+  useEffect(() => {
+    const checkAccess = async () => {
+      const userCount = await db.users.count()
+      if (userCount === 0) {
+        setIsFirstUser(true)
+        setRole('admin')
+      } else {
+        setIsFirstUser(false)
+        if (!isAuthenticated || currentUser?.role !== 'admin') {
+          navigate('/signin')
+          return
+        }
+      }
+      setCheckingAccess(false)
+    }
+    checkAccess()
+  }, [isAuthenticated, currentUser, navigate])
 
   // Live Query users
   const users = useLiveQuery(() => db.users.toArray()) || []
@@ -56,10 +70,13 @@ export default function SignUp() {
         return
       }
 
+      const userCount = await db.users.count()
+      const assignedRole = userCount === 0 ? 'admin' : role
+
       await db.users.add({
         name: name.trim(),
         email: emailLower,
-        role,
+        role: assignedRole,
         pin: pin.trim(),
         active: true
       })
@@ -70,6 +87,11 @@ export default function SignUp() {
       setRole('cashier')
       
       showNotification('Employee account created successfully!')
+
+      if (userCount === 0) {
+        alert('First administrator registered successfully! Please log in.')
+        navigate('/signin')
+      }
     } catch (err) {
       console.error(err)
     }
@@ -89,47 +111,15 @@ export default function SignUp() {
     }
   }
 
-  const handleDeleteUser = async (userItem) => {
-    if (userItem.role === 'admin') {
-      alert('Cannot delete the primary System Administrator account!')
-      return
-    }
-    if (!confirm(`Are you absolutely sure you want to delete ${userItem.name}? All their terminal logs remain, but they won't be able to log in.`)) return
-
-    try {
-      await db.users.delete(userItem.id)
-      showNotification('Staff profile deleted successfully.')
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const openEditModal = (userItem) => {
-    setEditingUser(userItem)
-    setEditName(userItem.name)
-    setEditEmail(userItem.email)
-    setEditRole(userItem.role)
-    setEditPin(userItem.pin)
-    setEditModal(true)
-  }
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault()
-    if (!editingUser) return
-
-    try {
-      await db.users.update(editingUser.id, {
-        name: editName.trim(),
-        email: editEmail.toLowerCase().trim(),
-        role: editRole,
-        pin: editPin.trim()
-      })
-      setEditModal(false)
-      setEditingUser(null)
-      showNotification('Staff credentials updated successfully!')
-    } catch (err) {
-      console.error(err)
-    }
+  if (checkingAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-8 h-8 spinner mx-auto mb-3 border-blue-600 border-t-blue-600 animate-spin rounded-full border-4" style={{borderColor:'#e5e7eb', borderTopColor:'#2563eb'}} />
+          <p className="text-sm text-gray-500">Checking authorization...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -194,8 +184,8 @@ export default function SignUp() {
           {/* Column 1: Onboarding Registration Form */}
           <Card className="lg:col-span-1 border border-gray-100">
             <CardHeader 
-              title="Register Staff Profile" 
-              subtitle="Provision fresh credentials for cashiers or managers." 
+              title={isFirstUser ? "Create Administrator" : "Register Staff Profile"} 
+              subtitle={isFirstUser ? "Define the primary owner/admin credentials." : "Provision fresh credentials for cashiers or managers."} 
             />
             <form onSubmit={handleRegister} className="space-y-4 mt-2">
               <Input
@@ -221,11 +211,18 @@ export default function SignUp() {
                 <select
                   value={role}
                   onChange={e => setRole(e.target.value)}
-                  className="w-full py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm px-3 focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all font-semibold"
+                  disabled={isFirstUser}
+                  className="w-full py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm px-3 focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all font-semibold disabled:opacity-75"
                 >
-                  <option value="cashier">Cashier Operator</option>
-                  <option value="manager">Store Manager</option>
-                  <option value="admin">System Administrator</option>
+                  {isFirstUser ? (
+                    <option value="admin">System Administrator (Required)</option>
+                  ) : (
+                    <>
+                      <option value="cashier">Cashier Operator</option>
+                      <option value="manager">Store Manager</option>
+                      <option value="admin">System Administrator</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -246,7 +243,7 @@ export default function SignUp() {
                 icon={UserPlus}
                 className="mt-2"
               >
-                Provision Staff Credentials
+                {isFirstUser ? "Register Administrator" : "Provision Staff Credentials"}
               </Button>
             </form>
           </Card>
@@ -337,24 +334,6 @@ export default function SignUp() {
                             </>
                           )}
                         </button>
-
-                        {/* Edit & Delete Buttons */}
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => openEditModal(u)}
-                            className="p-2 hover:bg-gray-50 text-gray-500 hover:text-gray-800 rounded-xl transition-colors border border-transparent hover:border-gray-100"
-                            title="Edit Credentials"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(u)}
-                            className="p-2 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-colors border border-transparent hover:border-red-100"
-                            title="Delete Employee"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
                       </div>
                     </div>
                   )
@@ -364,71 +343,6 @@ export default function SignUp() {
           </div>
         </div>
       </main>
-
-      {/* Edit User Modal */}
-      <Modal
-        isOpen={editModal}
-        onClose={() => { setEditModal(false); setEditingUser(null) }}
-        title="Update Staff Credentials"
-      >
-        <form onSubmit={handleSaveEdit} className="space-y-4">
-          <Input
-            label="Full Name"
-            placeholder="e.g. John Doe"
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-            required
-          />
-
-          <Input
-            label="Email Account Address"
-            type="email"
-            placeholder="e.g. john@nexuspos.com"
-            value={editEmail}
-            onChange={e => setEditEmail(e.target.value)}
-            required
-            icon={Mail}
-          />
-
-          <div>
-            <label className="text-sm font-semibold text-gray-700 block mb-1.5">System Access Role</label>
-            <select
-              value={editRole}
-              onChange={e => setEditRole(e.target.value)}
-              className="w-full py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm px-3 focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800"
-            >
-              <option value="cashier">Cashier Operator</option>
-              <option value="manager">Store Manager</option>
-              <option value="admin">System Administrator</option>
-            </select>
-          </div>
-
-          <Input
-            label="Authorized Security PIN"
-            placeholder="e.g. pos1234"
-            value={editPin}
-            onChange={e => setEditPin(e.target.value)}
-            required
-            icon={Lock}
-          />
-
-          <div className="flex justify-end gap-3 pt-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => { setEditModal(false); setEditingUser(null) }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-            >
-              Save Credentials
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Page Footer credits */}
       <footer className="py-6 border-t border-gray-100 text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-auto">

@@ -319,7 +319,7 @@ export default function Admin() {
           <form onSubmit={handleAdminGateLogin} className="space-y-4">
             <Input
               type="password"
-              placeholder="Admin Pin (default: admin123)"
+              placeholder="Enter Admin Pin"
               value={adminPass}
               onChange={e => setAdminPass(e.target.value)}
               error={adminError}

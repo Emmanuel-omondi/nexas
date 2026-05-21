@@ -8,6 +8,7 @@ import { db } from '../../db/database'
 import { useAuthStore } from '../../store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { formatTime } from '../../utils/formatters'
+import { runSync } from '../../utils/syncEngine'
 
 export default function Header({ title, onMenuToggle }) {
   const { user } = useAuthStore()
@@ -60,40 +61,53 @@ export default function Header({ title, onMenuToggle }) {
     }
   }, [])
 
+  const [toast, setToast] = useState(null)
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
   // Auto-trigger sync when unsynced items appear online
   useEffect(() => {
     if (online && unsyncedCount > 0 && !syncing) {
-      triggerAutoSync()
+      triggerAutoSync(false)
     }
   }, [unsyncedCount, online])
 
-  const triggerAutoSync = async () => {
-    if (syncing || unsyncedCount === 0) return
-    setSyncing(true)
-    setSyncProgress(0)
+  const triggerAutoSync = async (force = false) => {
+    const hasConnectionString = settings?.neonConnectionString && settings.neonConnectionString.trim() !== ''
+    if (!hasConnectionString) {
+      if (force) {
+        setToast({ type: 'error', message: 'Database Connection String not configured' })
+      }
+      return
+    }
 
-    // Simulate batch sync upload with incremental loader
+    if (syncing) return
+    setSyncing(true)
+    setSyncProgress(20)
+
     try {
-      const orderIds = unsyncedOrders.map(o => o.id)
-      
-      // Simulate API packaging delay
-      for (let i = 0; i < orderIds.length; i++) {
-        const orderId = orderIds[i]
-        
-        // Simulating cloud server storage upload latency
-        await new Promise(resolve => setTimeout(resolve, 800))
-        
-        // Update local database status to Synced!
-        await db.orders.update(orderId, { synced: 1 })
-        
-        // Progress calculator
-        setSyncProgress(Math.round(((i + 1) / orderIds.length) * 100))
+      setSyncProgress(50)
+      const res = await runSync()
+      setSyncProgress(85)
+      if (res.success) {
+        setSyncProgress(100)
+        setToast({ type: 'success', message: 'Sync completed successfully!' })
+      } else {
+        setToast({ type: 'error', message: res.message })
       }
     } catch (err) {
-      console.error('Auto sync failure:', err)
+      console.error('Sync failure:', err)
+      setToast({ type: 'error', message: `Sync failure: ${err.message}` })
     } finally {
-      setSyncing(false)
-      setSyncProgress(0)
+      setTimeout(() => {
+        setSyncing(false)
+        setSyncProgress(0)
+      }, 1000)
     }
   }
 
@@ -109,6 +123,8 @@ export default function Header({ title, onMenuToggle }) {
     setShowInstallBtn(false)
   }
 
+  const hasConnectionString = !!(settings?.neonConnectionString && settings.neonConnectionString.trim() !== '')
+
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center px-6 gap-4 flex-shrink-0 relative">
       {/* Syncing Progress Bar overlay */}
@@ -118,6 +134,19 @@ export default function Header({ title, onMenuToggle }) {
             className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-300"
             style={{ width: `${syncProgress}%` }}
           />
+        </div>
+      )}
+
+      {/* Sync Status Toast Alert */}
+      {toast && (
+        <div className={`absolute top-18 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl border shadow-lg text-xs font-semibold animate-fade-in ${
+          toast.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+            : 'bg-red-50 text-red-800 border-red-100'
+        }`}>
+          <CheckCircle2 size={16} className={toast.type === 'success' ? 'text-emerald-500' : 'text-red-500'} />
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-2 text-gray-400 hover:text-gray-600 font-bold">&times;</button>
         </div>
       )}
 
@@ -149,10 +178,19 @@ export default function Header({ title, onMenuToggle }) {
 
       {/* Background Database Sync Indicator */}
       <div className="flex items-center gap-2">
-        {online ? (
+        {!hasConnectionString ? (
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-405 border border-gray-200 cursor-pointer hover:bg-gray-100/50"
+            onClick={() => triggerAutoSync(true)}
+            title="Database Connection String not configured"
+          >
+            <CloudLightning size={13} className="text-gray-400" />
+            <span className="hidden md:inline">Offline Cache Only</span>
+          </div>
+        ) : online ? (
           unsyncedCount > 0 ? (
             <button
-              onClick={triggerAutoSync}
+              onClick={() => triggerAutoSync(true)}
               disabled={syncing}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 syncing
@@ -168,8 +206,9 @@ export default function Header({ title, onMenuToggle }) {
             </button>
           ) : (
             <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100"
-              title="All database entries uploaded to central safe."
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 cursor-pointer hover:bg-emerald-100/50"
+              onClick={() => triggerAutoSync(true)}
+              title="All database entries uploaded to central safe. Click to sync."
             >
               <CheckCircle2 size={13} className="text-emerald-500" />
               <span className="hidden md:inline">Cloud Synced</span>

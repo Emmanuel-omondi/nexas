@@ -3,16 +3,27 @@ import { useNavigate } from 'react-router-dom'
 import { Store, Mail, Lock, Eye, EyeOff, ArrowRight, Wifi, WifiOff } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { useEffect } from 'react'
+import { db } from '../db/database'
 
 export default function SignIn() {
   const navigate = useNavigate()
   const { login } = useAuthStore()
-  const [email, setEmail]       = useState('cashier@nexuspos.com')
-  const [password, setPassword] = useState('pos1234')
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
   const [online, setOnline]     = useState(navigator.onLine)
+
+  useEffect(() => {
+    const checkUsers = async () => {
+      const count = await db.users.count()
+      if (count === 0) {
+        navigate('/signup')
+      }
+    }
+    checkUsers()
+  }, [navigate])
 
   useEffect(() => {
     const on  = () => setOnline(true)
@@ -163,14 +174,6 @@ export default function SignIn() {
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-xs font-semibold text-blue-700 mb-2">Demo Credentials</p>
-            <div className="space-y-1 text-xs text-blue-600">
-              <p>Cashier: <span className="font-mono">cashier@nexuspos.com</span> / <span className="font-mono">pos1234</span></p>
-              <p>Admin: <span className="font-mono">admin@nexuspos.com</span> / <span className="font-mono">admin123</span></p>
-            </div>
-          </div>
           <div className="text-center mt-8 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
             Powered by BitBridge Technologies
           </div>

@@ -21,6 +21,7 @@ export const useSettingsStore = create((set, get) => ({
     lowStockAlert: 10,
     theme: 'light',
     storeType: 'General Store',
+    neonConnectionString: '',
   },
   loaded: false,
 

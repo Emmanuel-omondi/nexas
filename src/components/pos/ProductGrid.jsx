@@ -3,29 +3,31 @@ import { Plus, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '../../utils/formatters'
 import { useSettingsStore } from '../../store/settingsStore'
 
-const categoryColors = {
-  'Food & Beverage': 'from-orange-400 to-orange-500',
-  'Groceries':       'from-green-400 to-green-500',
-  'Electronics':     'from-blue-400 to-blue-500',
-  'Clothing':        'from-purple-400 to-purple-500',
-  'Hotel Services':  'from-pink-400 to-pink-500',
-  'Beverages':       'from-cyan-400 to-cyan-500',
-  'Bakery':          'from-amber-400 to-amber-500',
-  'Pharmacy':        'from-red-400 to-red-500',
+const fallbackCategoryColors = {
+  'Food & Beverage': '#f97316',
+  'Groceries':       '#22c55e',
+  'Electronics':     '#3b82f6',
+  'Clothing':        '#a855f7',
+  'Hotel Services':  '#ec4899',
+  'Beverages':       '#06b6d4',
+  'Bakery':          '#f59e0b',
+  'Pharmacy':        '#ef4444',
 }
 
-const categoryEmoji = {
-  'Food & Beverage': '🍽️',
-  'Groceries':       '🛒',
-  'Electronics':     '📱',
-  'Clothing':        '👕',
-  'Hotel Services':  '🏨',
-  'Beverages':       '☕',
-  'Bakery':          '🥐',
-  'Pharmacy':        '💊',
+const getInitials = (name) => {
+  if (!name) return ''
+  const words = name.trim().split(/\s+/)
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase()
+  }
+  const word = words[0]
+  if (word.length >= 2) {
+    return word.slice(0, 2).toUpperCase()
+  }
+  return word.slice(0, 1).toUpperCase()
 }
 
-export default function ProductGrid({ products, onAdd, cartItems }) {
+export default function ProductGrid({ products, onAdd, cartItems, categories = [] }) {
   const { settings } = useSettingsStore()
 
   const getCartQty = (id) => {
@@ -46,8 +48,8 @@ export default function ProductGrid({ products, onAdd, cartItems }) {
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
       {products.map(product => {
         const qty = getCartQty(product.id)
-        const gradient = categoryColors[product.category] || 'from-gray-400 to-gray-500'
-        const emoji = categoryEmoji[product.category] || '📦'
+        const catObj = categories.find(c => c.name === product.category)
+        const catColor = catObj?.color || fallbackCategoryColors[product.category] || '#6b7280'
         const lowStock = product.stock <= 10 && product.stock > 0
         const outOfStock = product.stock === 0
 
@@ -64,11 +66,16 @@ export default function ProductGrid({ products, onAdd, cartItems }) {
             )}
           >
             {/* Color header */}
-            <div className={clsx(
-              'h-20 bg-gradient-to-br flex items-center justify-center text-3xl',
-              gradient
-            )}>
-              {emoji}
+            <div 
+              className="h-20 flex items-center justify-center relative"
+              style={{ backgroundColor: `${catColor}15` }}
+            >
+              <div 
+                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-base shadow-sm"
+                style={{ backgroundColor: catColor }}
+              >
+                {getInitials(product.name)}
+              </div>
               {qty > 0 && (
                 <div className="absolute top-2 right-2 w-6 h-6 bg-navy-800 text-white text-xs font-bold rounded-full flex items-center justify-center">
                   {qty}

@@ -118,6 +118,7 @@ export default function Settings() {
       storeType: settings?.storeType || 'General Store',
       drawerCashLimit: settings?.drawerCashLimit || 20000,
       receiptHeader: settings?.receiptHeader || 'WELCOME TO OUR STORE',
+      neonConnectionString: settings?.neonConnectionString || '',
     })
   }, [settings])
 
@@ -158,6 +159,7 @@ export default function Settings() {
     { id: 'mpesa', label: 'M-Pesa & Cash', icon: Smartphone },
     { id: 'categories', label: 'Product Categories', icon: FolderPlus },
     { id: 'receipt', label: 'Receipt Template', icon: Receipt },
+    { id: 'sync', label: 'Database Sync', icon: RefreshCw },
   ]
 
   const storeTypes = [
@@ -675,6 +677,48 @@ export default function Settings() {
                       <Plus size={14} />
                       Create Category
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'sync' && (
+              <div className="space-y-6">
+                <CardHeader
+                  title="Neon Postgres Database Sync"
+                  subtitle="Configure your Neon Postgres connection to sync categories, products, customers, and sales orders to the cloud."
+                />
+
+                <div className="space-y-4">
+                  <Input
+                    label="Neon Connection String"
+                    type="password"
+                    placeholder="postgresql://username:password@ep-host-name.region.pooler.neon.tech/dbname?sslmode=require"
+                    value={formData.neonConnectionString || ''}
+                    onChange={e => handleInputChange('neonConnectionString', e.target.value)}
+                    hint="You can find your connection string in the Neon Console. This enables secure, real-time bidirectional database synchronization."
+                  />
+
+                  <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl space-y-3">
+                    <span className="text-xs font-bold text-navy-800 block">About Neon DB Integration</span>
+                    <p className="text-[11px] text-gray-500 leading-normal">
+                      Connecting your Neon database enables automatic, bidirectional cloud syncing. 
+                      Any offline sales will automatically sync to the cloud, and new products or configurations will be downloaded.
+                    </p>
+                    <div className="border-t border-blue-100 pt-2 flex flex-col gap-1.5 text-[11px] text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <span>Automatic table creation: <code>users</code>, <code>categories</code>, <code>products</code>, <code>customers</code>, <code>orders</code>, <code>order_items</code>.</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <span>Bidirectional sync of local categories, products, and customers.</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                        <span>Self-healing schema design: Sync can run on a fresh database.</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
