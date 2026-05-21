@@ -63,6 +63,10 @@ function App() {
           element={<SignUp />}
         />
         <Route
+          path="/setup-admin"
+          element={<SignUp />}
+        />
+        <Route
           path="/"
           element={
             <ProtectedRoute>

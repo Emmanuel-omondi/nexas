@@ -31,10 +31,20 @@ export default function SignUp() {
   useEffect(() => {
     const checkAccess = async () => {
       const userCount = await db.users.count()
-      if (userCount === 0) {
+      const isSetupPath = window.location.pathname === '/setup-admin'
+
+      if (isSetupPath) {
+        if (userCount > 0) {
+          navigate('/signin')
+          return
+        }
         setIsFirstUser(true)
         setRole('admin')
       } else {
+        if (userCount === 0) {
+          navigate('/signin')
+          return
+        }
         setIsFirstUser(false)
         if (!isAuthenticated || currentUser?.role !== 'admin') {
           navigate('/signin')

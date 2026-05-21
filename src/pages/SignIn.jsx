@@ -15,15 +15,19 @@ export default function SignIn() {
   const [error, setError]       = useState('')
   const [online, setOnline]     = useState(navigator.onLine)
 
+  const [uninitialized, setUninitialized] = useState(false)
+
   useEffect(() => {
     const checkUsers = async () => {
       const count = await db.users.count()
       if (count === 0) {
-        navigate('/signup')
+        setUninitialized(true)
+      } else {
+        setUninitialized(false)
       }
     }
     checkUsers()
-  }, [navigate])
+  }, [])
 
   useEffect(() => {
     const on  = () => setOnline(true)
@@ -112,67 +116,81 @@ export default function SignIn() {
           <h2 className="text-2xl font-black text-gray-900 mb-1">Welcome back</h2>
           <p className="text-gray-500 text-sm mb-8">Sign in to your POS account</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-700">Email Address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all"
-                />
+          {uninitialized ? (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-5 space-y-4 shadow-sm animate-fade-in text-left">
+              <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center">
+                <Lock size={22} className="text-amber-800 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-gray-900 text-sm">POS Terminal Uninitialized</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  There are no operator profiles configured on this device. Please contact your system provider or navigate to the secure admin initialization URL to provision your owner credentials.
+                </p>
               </div>
             </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-gray-700">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  required
-                  className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(s => !s)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-gray-700">Email Address</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all"
+                  />
+                </div>
               </div>
-            </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
-                {error}
+              {/* Password */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-gray-700">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    required
+                    className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(s => !s)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-navy-800 hover:bg-navy-700 text-white font-bold py-3.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 mt-2"
-            >
-              {loading ? (
-                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <>Sign In <ArrowRight size={18} /></>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
+                  {error}
+                </div>
               )}
-            </button>
-          </form>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-navy-800 hover:bg-navy-700 text-white font-bold py-3.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 mt-2"
+              >
+                {loading ? (
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <>Sign In <ArrowRight size={18} /></>
+                )}
+              </button>
+            </form>
+          )}
 
           <div className="text-center mt-8 text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
             Powered by BitBridge Technologies
