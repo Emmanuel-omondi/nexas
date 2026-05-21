@@ -35,14 +35,14 @@ export default function POS() {
   const [scanToast, setScanToast]   = useState(null)
 
   // Live queries from IndexedDB
-  const products   = useLiveQuery(() => db.products.where('active').equals(true).toArray(), [])
-  const categories = useLiveQuery(() => db.categories.toArray(), [])
+  const products   = useLiveQuery(() => db.products.toArray(), []) || []
+  const categories = useLiveQuery(() => db.categories.toArray(), []) || []
 
   // Sync tax rate from settings
   useEffect(() => {
-    if (settings.taxEnabled) cart.setTaxRate(settings.taxRate)
+    if (settings?.taxEnabled) cart.setTaxRate(settings?.taxRate)
     else cart.setTaxRate(0)
-  }, [settings.taxRate, settings.taxEnabled])
+  }, [settings?.taxRate, settings?.taxEnabled])
 
   // Shift gate check on component mount
   useEffect(() => {
@@ -116,9 +116,10 @@ export default function POS() {
   // Filter products by category and search query
   const filtered = useMemo(() => {
     if (!products) return []
-    return products.filter(p => {
+    const activeProds = products.filter(p => p.active !== false)
+    return activeProds.filter(p => {
       const matchCat    = !category || p.category === category
-      const matchSearch = !search   || p.name.toLowerCase().includes(search.toLowerCase()) || p.barcode?.includes(search)
+      const matchSearch = !search   || (p.name ? String(p.name).toLowerCase() : '').includes(search.toLowerCase()) || p.barcode?.includes(search)
       return matchCat && matchSearch
     })
   }, [products, category, search])
@@ -167,8 +168,8 @@ export default function POS() {
       cashierId:     user?.id,
       cashierName:   user?.name,
       customerId:    cart.customerId,
-      tableNumber:   settings.storeType === 'Food Store' ? cart.tableNumber : null,
-      roomNumber:    settings.storeType === 'Hotel' ? cart.roomNumber : null,
+      tableNumber:   settings?.storeType === 'Food Store' ? cart.tableNumber : null,
+      roomNumber:    settings?.storeType === 'Hotel' ? cart.roomNumber : null,
       note:          cart.note,
       shiftId:       activeShift.id,
       createdAt:     new Date().toISOString(),
@@ -190,6 +191,22 @@ export default function POS() {
         discount:  item.discount,
       }))
     )
+
+    // Update Customer loyalty and spent metrics
+    if (cart.customerId) {
+      try {
+        const customer = await db.customers.get(cart.customerId)
+        if (customer) {
+          const addedPoints = Math.floor(total * 0.01) // 1% points
+          await db.customers.update(cart.customerId, {
+            totalSpent: (customer.totalSpent || 0) + total,
+            loyaltyPoints: (customer.loyaltyPoints || 0) + addedPoints
+          })
+        }
+      } catch (err) {
+        console.error('Failed to update customer loyalty metrics:', err)
+      }
+    }
 
     // Update stock levels in local DB
     for (const item of cart.items) {
@@ -286,7 +303,7 @@ export default function POS() {
             </p>
             {activeShift ? (
               <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-200">
-                Shift Open (Expected: {settings.currency} {activeShift.expectedCash})
+                Shift Open (Expected: {settings?.currency || 'KES'} {activeShift.expectedCash})
               </span>
             ) : (
               <span className="text-[10px] font-bold px-2 py-0.5 bg-red-50 text-red-500 rounded-full border border-red-200 animate-pulse">
@@ -358,7 +375,7 @@ export default function POS() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-700">Opening Starting Cash ({settings.currency})</label>
+            <label className="text-xs font-bold text-gray-700">Opening Starting Cash ({settings?.currency || 'KES'})</label>
             <Input
               type="number"
               value={startingCash}

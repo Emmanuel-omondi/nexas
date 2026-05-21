@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Bell, Search, Wifi, WifiOff, ChevronDown, RefreshCw,
-  CloudLightning, CheckCircle2, Download, MonitorSmartphone
+  CloudLightning, CheckCircle2, Download, MonitorSmartphone, Menu
 } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../db/database'
@@ -9,7 +9,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { formatTime } from '../../utils/formatters'
 
-export default function Header({ title }) {
+export default function Header({ title, onMenuToggle }) {
   const { user } = useAuthStore()
   const { settings } = useSettingsStore()
   const [online, setOnline] = useState(navigator.onLine)
@@ -121,6 +121,15 @@ export default function Header({ title }) {
         </div>
       )}
 
+      {/* Hamburger menu for mobile */}
+      <button
+        onClick={onMenuToggle}
+        className="lg:hidden p-2 -ml-2 rounded-xl hover:bg-gray-100 transition-colors mr-1 flex-shrink-0"
+        title="Open navigation menu"
+      >
+        <Menu size={22} className="text-gray-700" />
+      </button>
+
       {/* Title */}
       <div className="flex-1">
         <h1 className="text-lg font-black text-gray-900 leading-tight">{title}</h1>
@@ -131,7 +140,7 @@ export default function Header({ title }) {
       {showInstallBtn && (
         <button
           onClick={handlePWAInstall}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-navy-800 text-white hover:bg-navy-700 transition-all shadow-sm animate-pulse"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-navy-800 text-white hover:bg-navy-700 transition-all shadow-sm animate-pulse"
         >
           <Download size={13} className="text-blue-300" />
           <span>Install POS App</span>

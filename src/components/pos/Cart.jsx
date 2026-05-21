@@ -1,4 +1,6 @@
 import { Trash2, Plus, Minus, ShoppingCart, Tag, User } from 'lucide-react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../../db/database'
 import { useCartStore } from '../../store/cartStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { formatCurrency } from '../../utils/formatters'
@@ -7,7 +9,8 @@ import Button from '../ui/Button'
 export default function Cart({ onCheckout }) {
   const cart = useCartStore()
   const { settings } = useSettingsStore()
-  const currency = settings.currency
+  const currency = settings?.currency || 'KES'
+  const customers = useLiveQuery(() => db.customers.toArray(), []) || []
 
   const subtotal  = cart.getSubtotal()
   const discount  = cart.getDiscountAmount()
@@ -110,8 +113,30 @@ export default function Cart({ onCheckout }) {
         </div>
       )}
 
+      {/* Customer CRM Selection */}
+      {cart.items.length > 0 && (
+        <div className="px-4 py-2 border-t border-gray-100 bg-gray-50/50">
+          <div className="flex items-center gap-2">
+            <User size={14} className="text-gray-400" />
+            <span className="text-xs text-gray-500 flex-1">Customer CRM</span>
+            <select
+              value={cart.customerId || ''}
+              onChange={e => cart.setCustomer(e.target.value ? Number(e.target.value) : null)}
+              className="text-xs font-semibold border border-gray-200 bg-white rounded-lg px-2 py-1 focus:outline-none focus:border-navy-800 max-w-[180px] truncate"
+            >
+              <option value="">Walk-in Customer</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.phone || 'No phone'})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Store Type Custom Adaptations */}
-      {cart.items.length > 0 && settings.storeType === 'Food Store' && (
+      {cart.items.length > 0 && settings?.storeType === 'Food Store' && (
         <div className="px-4 py-2 border-t border-gray-100 bg-orange-50/30">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-orange-700 flex-1">Table Number</span>
@@ -131,7 +156,7 @@ export default function Cart({ onCheckout }) {
         </div>
       )}
 
-      {cart.items.length > 0 && settings.storeType === 'Hotel' && (
+      {cart.items.length > 0 && settings?.storeType === 'Hotel' && (
         <div className="px-4 py-2 border-t border-gray-100 bg-pink-50/30">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-pink-700 flex-1">Room Assignment</span>
@@ -159,9 +184,9 @@ export default function Cart({ onCheckout }) {
               <span>-{formatCurrency(discount, currency)}</span>
             </div>
           )}
-          {settings.taxEnabled && (
+          {settings?.taxEnabled && (
             <div className="flex justify-between text-sm text-gray-500">
-              <span>Tax ({settings.taxRate}%)</span>
+              <span>Tax ({settings?.taxRate}%)</span>
               <span>{formatCurrency(tax, currency)}</span>
             </div>
           )}

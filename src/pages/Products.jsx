@@ -10,11 +10,12 @@ import Badge from '../components/ui/Badge'
 import Modal from '../components/ui/Modal'
 import Input from '../components/ui/Input'
 
-const CATEGORIES = ['Food & Beverage','Groceries','Electronics','Clothing','Hotel Services','Beverages','Bakery','Pharmacy']
+const DEFAULT_CATEGORIES = ['Food & Beverage','Groceries','Electronics','Clothing','Hotel Services','Beverages','Bakery','Pharmacy']
 
-function ProductForm({ product, onSave, onClose }) {
+function ProductForm({ product, categories, onSave, onClose }) {
+  const cats = categories && categories.length > 0 ? categories.map(c => c.name) : DEFAULT_CATEGORIES
   const [form, setForm] = useState(product || {
-    name: '', category: 'Groceries', barcode: '', price: '', cost: '', stock: '', unit: 'piece', active: true,
+    name: '', category: cats[0] || 'Groceries', barcode: '', price: '', cost: '', stock: '', unit: 'piece', active: true,
   })
   const [saving, setSaving] = useState(false)
 
@@ -38,7 +39,7 @@ function ProductForm({ product, onSave, onClose }) {
           <label className="text-sm font-medium text-gray-700">Category</label>
           <select value={form.category} onChange={e => set('category', e.target.value)}
             className="input-field">
-            {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+            {cats.map(c => <option key={c}>{c}</option>)}
           </select>
         </div>
         <Input label="Barcode / SKU" value={form.barcode} onChange={e => set('barcode', e.target.value)} />
@@ -106,7 +107,7 @@ export default function Products() {
             />
           </div>
           <div className="flex gap-2 flex-wrap">
-            {['All', ...CATEGORIES].map(c => (
+            {['All', ...(categories && categories.length > 0 ? categories.map(c => c.name) : DEFAULT_CATEGORIES)].map(c => (
               <button
                 key={c}
                 onClick={() => setCat(c)}
@@ -154,10 +155,10 @@ export default function Products() {
                     <Badge variant="primary">{p.category}</Badge>
                   </td>
                   <td className="px-3 py-3 text-right text-sm font-bold text-gray-900">
-                    {formatCurrency(p.price, settings.currency)}
+                    {formatCurrency(p.price, settings?.currency || 'KES')}
                   </td>
                   <td className="px-3 py-3 text-right text-sm text-gray-500">
-                    {formatCurrency(p.cost, settings.currency)}
+                    {formatCurrency(p.cost, settings?.currency || 'KES')}
                   </td>
                   <td className="px-3 py-3 text-right">
                     <span className={`text-sm font-semibold ${p.stock === 0 ? 'text-red-500' : p.stock <= 10 ? 'text-amber-500' : 'text-gray-800'}`}>
@@ -194,7 +195,7 @@ export default function Products() {
 
       {/* Modal */}
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editing ? 'Edit Product' : 'Add New Product'} size="lg">
-        <ProductForm product={editing} onSave={() => setModal(false)} onClose={() => setModal(false)} />
+        <ProductForm product={editing} categories={categories} onSave={() => setModal(false)} onClose={() => setModal(false)} />
       </Modal>
     </div>
   )

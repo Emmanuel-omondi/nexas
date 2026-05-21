@@ -1,13 +1,44 @@
 import React, { useState, useEffect } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../db/database'
 import {
   Store, Receipt, Sliders, Smartphone, Percent,
   Save, Sparkles, CheckCircle2, RefreshCw, SmartphoneCharging,
-  Coins, HelpCircle, BellRing
+  Coins, HelpCircle, BellRing, FolderPlus, Tag, Trash2,
+  Plus, UtensilsCrossed, ShoppingBasket, Cpu, Shirt,
+  Hotel, Coffee, Croissant, Pill
 } from 'lucide-react'
 import { useSettingsStore } from '../store/settingsStore'
 import Card, { CardHeader } from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
+
+const iconMap = {
+  UtensilsCrossed, ShoppingBasket, Cpu, Shirt,
+  Hotel, Coffee, Croissant, Pill, Tag
+}
+
+const PRESET_COLORS = [
+  { value: '#3b82f6', name: 'Blue' },
+  { value: '#22c55e', name: 'Green' },
+  { value: '#f97316', name: 'Orange' },
+  { value: '#a855f7', name: 'Purple' },
+  { value: '#ec4899', name: 'Pink' },
+  { value: '#06b6d4', name: 'Cyan' },
+  { value: '#f59e0b', name: 'Amber' },
+  { value: '#ef4444', name: 'Red' },
+]
+
+const PRESET_ICONS = [
+  { value: 'ShoppingBasket', label: 'Groceries / Basket' },
+  { value: 'UtensilsCrossed', label: 'Food / Utensils' },
+  { value: 'Cpu', label: 'Electronics / CPU' },
+  { value: 'Shirt', label: 'Clothing / Shirt' },
+  { value: 'Hotel', label: 'Hotel / Building' },
+  { value: 'Coffee', label: 'Beverages / Coffee' },
+  { value: 'Croissant', label: 'Bakery / Croissant' },
+  { value: 'Pill', label: 'Pharmacy / Pill' },
+]
 
 export default function Settings() {
   const { settings, updateSettings, loadSettings } = useSettingsStore()
@@ -16,22 +47,77 @@ export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  // Custom categories state
+  const categories = useLiveQuery(() => db.categories.toArray(), []) || []
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatColor, setNewCatColor] = useState('#3b82f6')
+  const [newCatIcon, setNewCatIcon] = useState('ShoppingBasket')
+  const [catError, setCatError] = useState('')
+
+  const handleAddCategory = async (e) => {
+    if (e) e.preventDefault()
+    setCatError('')
+    if (!newCatName.trim()) {
+      setCatError('Category name is required')
+      return
+    }
+
+    // Check if category name already exists (case-insensitive)
+    const exists = categories.some(
+      c => c.name.toLowerCase() === newCatName.trim().toLowerCase()
+    )
+    if (exists) {
+      setCatError('A category with this name already exists')
+      return
+    }
+
+    try {
+      await db.categories.add({
+        name: newCatName.trim(),
+        color: newCatColor,
+        icon: newCatIcon
+      })
+      setNewCatName('')
+      setNewCatColor('#3b82f6')
+      setNewCatIcon('ShoppingBasket')
+    } catch (err) {
+      console.error('Failed to add category:', err)
+      setCatError('Error saving category to database')
+    }
+  }
+
+  const handleDeleteCategory = async (id, name) => {
+    if (window.confirm(`Are you sure you want to delete the category "${name}"? Products linked to this category will not be deleted, but they will no longer be filtered under it.`)) {
+      try {
+        await db.categories.delete(id)
+      } catch (err) {
+        console.error('Failed to delete category:', err)
+      }
+    }
+  }
+
   // Initialize form data when settings load
   useEffect(() => {
     setFormData({
-      storeName: settings.storeName || '',
-      storeAddress: settings.storeAddress || '',
-      storePhone: settings.storePhone || '',
-      currency: settings.currency || 'KES',
-      taxRate: settings.taxRate || 16,
-      taxEnabled: settings.taxEnabled !== undefined ? settings.taxEnabled : true,
-      receiptFooter: settings.receiptFooter || '',
-      mpesaPaybill: settings.mpesaPaybill || '',
-      mpesaAccount: settings.mpesaAccount || '',
-      lowStockAlert: settings.lowStockAlert || 10,
-      storeType: settings.storeType || 'General Store',
-      drawerCashLimit: settings.drawerCashLimit || 20000,
-      receiptHeader: settings.receiptHeader || 'WELCOME TO OUR STORE',
+      storeName: settings?.storeName || '',
+      storeAddress: settings?.storeAddress || '',
+      storePhone: settings?.storePhone || '',
+      currency: settings?.currency || 'KES',
+      taxRate: settings?.taxRate || 16,
+      taxEnabled: settings?.taxEnabled !== undefined ? settings.taxEnabled : true,
+      receiptFooter: settings?.receiptFooter || '',
+      mpesaPaybill: settings?.mpesaPaybill || '',
+      mpesaAccount: settings?.mpesaAccount || '',
+      mpesaConsumerKey: settings?.mpesaConsumerKey || '',
+      mpesaConsumerSecret: settings?.mpesaConsumerSecret || '',
+      mpesaPasskey: settings?.mpesaPasskey || '',
+      mpesaEnv: settings?.mpesaEnv || 'sandbox',
+      mpesaCallbackUrl: settings?.mpesaCallbackUrl || 'https://api.bitbridge.co.ke/mpesa/callback',
+      mpesaType: settings?.mpesaType || 'Paybill',
+      lowStockAlert: settings?.lowStockAlert || 10,
+      storeType: settings?.storeType || 'General Store',
+      drawerCashLimit: settings?.drawerCashLimit || 20000,
+      receiptHeader: settings?.receiptHeader || 'WELCOME TO OUR STORE',
     })
   }, [settings])
 
@@ -44,6 +130,7 @@ export default function Settings() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (activeTab === 'categories') return
     setLoading(true)
     setSuccess(false)
     try {
@@ -69,6 +156,7 @@ export default function Settings() {
     { id: 'mode', label: 'Store Mode', icon: Sliders },
     { id: 'taxes', label: 'Taxes & Fees', icon: Percent },
     { id: 'mpesa', label: 'M-Pesa & Cash', icon: Smartphone },
+    { id: 'categories', label: 'Product Categories', icon: FolderPlus },
     { id: 'receipt', label: 'Receipt Template', icon: Receipt },
   ]
 
@@ -294,11 +382,22 @@ export default function Settings() {
             {activeTab === 'mpesa' && (
               <div className="space-y-6">
                 <CardHeader
-                  title="M-Pesa Integration & Cash Limits"
-                  subtitle="Manage your cellular payment APIs and trigger limits for safe drawer cash drops."
+                  title="M-Pesa Daraja STK Push Integration"
+                  subtitle="Configure your Safaricom Daraja API keys to enable seamless mobile STK Push checkout prompts."
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1.5">M-Pesa Integration Type</label>
+                    <select
+                      value={formData.mpesaType || 'Paybill'}
+                      onChange={e => handleInputChange('mpesaType', e.target.value)}
+                      className="w-full py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm px-3 focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 font-semibold"
+                    >
+                      <option value="Paybill">Paybill</option>
+                      <option value="Till">Buy Goods (Till Number)</option>
+                    </select>
+                  </div>
                   <Input
                     label="M-Pesa Paybill / Till No"
                     placeholder="e.g. 174379 (Lipa Na M-Pesa)"
@@ -307,11 +406,54 @@ export default function Settings() {
                     icon={SmartphoneCharging}
                   />
                   <Input
-                    label="Default Account Name"
+                    label="Default Account/Till Reference"
                     placeholder="e.g. NEXUSPOS"
                     value={formData.mpesaAccount || ''}
                     onChange={e => handleInputChange('mpesaAccount', e.target.value)}
                     icon={Coins}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-5">
+                  <Input
+                    label="Daraja Consumer Key"
+                    placeholder="Enter Safaricom Consumer Key"
+                    value={formData.mpesaConsumerKey || ''}
+                    onChange={e => handleInputChange('mpesaConsumerKey', e.target.value)}
+                  />
+                  <Input
+                    label="Daraja Consumer Secret"
+                    type="password"
+                    placeholder="Enter Safaricom Consumer Secret"
+                    value={formData.mpesaConsumerSecret || ''}
+                    onChange={e => handleInputChange('mpesaConsumerSecret', e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Input
+                    label="Daraja Passkey"
+                    type="password"
+                    placeholder="Lipa Na M-Pesa Online Passkey"
+                    value={formData.mpesaPasskey || ''}
+                    onChange={e => handleInputChange('mpesaPasskey', e.target.value)}
+                  />
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1.5">Daraja Environment</label>
+                    <select
+                      value={formData.mpesaEnv || 'sandbox'}
+                      onChange={e => handleInputChange('mpesaEnv', e.target.value)}
+                      className="w-full py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm px-3 focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 font-semibold"
+                    >
+                      <option value="sandbox">Sandbox (Testing)</option>
+                      <option value="production">Production (Live)</option>
+                    </select>
+                  </div>
+                  <Input
+                    label="M-Pesa Callback URL"
+                    placeholder="https://yourdomain.com/mpesa/callback"
+                    value={formData.mpesaCallbackUrl || ''}
+                    onChange={e => handleInputChange('mpesaCallbackUrl', e.target.value)}
                   />
                 </div>
 
@@ -390,27 +532,176 @@ export default function Settings() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'categories' && (
+              <div className="space-y-6">
+                <CardHeader
+                  title="Product Categories Management"
+                  subtitle="Manage database product categories dynamically. Add or remove categories for quick POS filtering."
+                />
+
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                  {/* Left Column: Existing Categories List */}
+                  <div className="lg:col-span-3 space-y-4">
+                    <h3 className="text-sm font-bold text-gray-900">Active Categories ({categories.length})</h3>
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                      {categories.map(cat => {
+                        const IconComponent = iconMap[cat.icon] || Tag
+                        return (
+                          <div
+                            key={cat.id}
+                            className="flex items-center justify-between p-3.5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-gray-200 transition-all duration-200"
+                            style={{ borderLeft: `4px solid ${cat.color}` }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                                style={{ backgroundColor: `${cat.color}15`, color: cat.color }}
+                              >
+                                <IconComponent size={18} />
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-sm text-gray-800">{cat.name}</h4>
+                                <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">{cat.icon} · {cat.color}</p>
+                              </div>
+                            </div>
+                            
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              title="Delete Category"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )
+                      })}
+                      {categories.length === 0 && (
+                        <div className="text-center py-8 bg-gray-50 border border-dashed border-gray-200 rounded-2xl text-gray-400 text-xs">
+                          No categories defined yet. Add one on the right!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Add Category Form */}
+                  <div className="lg:col-span-2 bg-gray-50/50 border border-gray-200/80 rounded-2xl p-5 space-y-4">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <FolderPlus size={16} className="text-blue-500" />
+                      <span>Add New Category</span>
+                    </h3>
+
+                    {catError && (
+                      <p className="text-xs text-red-500 font-semibold bg-red-50 border border-red-100 p-2 rounded-xl">
+                        {catError}
+                      </p>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-700">Category Name</label>
+                      <input
+                        type="text"
+                        value={newCatName}
+                        onChange={e => setNewCatName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddCategory(e)
+                          }
+                        }}
+                        placeholder="e.g. Snacks & Sweets"
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-navy-800/20 focus:border-navy-800 font-medium"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-700 block">Theme Color</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {PRESET_COLORS.map(color => {
+                          const isSelected = newCatColor === color.value
+                          return (
+                            <button
+                              key={color.value}
+                              type="button"
+                              onClick={() => setNewCatColor(color.value)}
+                              className={`h-9 rounded-xl flex items-center justify-center border transition-all ${
+                                isSelected
+                                  ? 'border-gray-800 ring-2 ring-gray-800/10 scale-105 shadow-sm'
+                                  : 'border-transparent hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: color.value }}
+                              title={color.name}
+                            >
+                              {isSelected && (
+                                <span className="w-2.5 h-2.5 bg-white rounded-full shadow-sm" />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-700 block">Display Icon</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {PRESET_ICONS.map(iconItem => {
+                          const IconComponent = iconMap[iconItem.value] || Tag
+                          const isSelected = newCatIcon === iconItem.value
+                          return (
+                            <button
+                              key={iconItem.value}
+                              type="button"
+                              onClick={() => setNewCatIcon(iconItem.value)}
+                              className={`h-10 rounded-xl flex items-center justify-center border transition-all ${
+                                isSelected
+                                  ? 'bg-navy-800 border-navy-800 text-white shadow-sm scale-105'
+                                  : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-500'
+                              }`}
+                              title={iconItem.label}
+                            >
+                              <IconComponent size={16} />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddCategory}
+                      className="w-full py-2.5 bg-navy-800 hover:bg-navy-900 text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all mt-4"
+                    >
+                      <Plus size={14} />
+                      Create Category
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Action Row */}
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              variant="outline"
-              type="button"
-              disabled={loading}
-              onClick={() => loadSettings()}
-            >
-              Reset Changes
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              loading={loading}
-              icon={Save}
-            >
-              Save System Settings
-            </Button>
-          </div>
+          {activeTab !== 'categories' && (
+            <div className="flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                type="button"
+                disabled={loading}
+                onClick={() => loadSettings()}
+              >
+                Reset Changes
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                loading={loading}
+                icon={Save}
+              >
+                Save System Settings
+              </Button>
+            </div>
+          )}
         </form>
       </div>
     </div>

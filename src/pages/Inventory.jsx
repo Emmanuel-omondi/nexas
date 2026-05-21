@@ -3,7 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
 import { formatCurrency } from '../utils/formatters'
 import { useSettingsStore } from '../store/settingsStore'
-import { AlertTriangle, TrendingDown, Package, Plus, Minus, Search } from 'lucide-react'
+import { useAuthStore } from '../store/authStore'
+import { AlertTriangle, TrendingDown, Package, Plus, Minus, Search, History } from 'lucide-react'
 import Card, { CardHeader } from '../components/ui/Card'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -14,6 +15,7 @@ function AdjustModal({ product, onClose }) {
   const [type, setType]   = useState('add')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  const { user } = useAuthStore()
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -23,10 +25,13 @@ function AdjustModal({ product, onClose }) {
     await db.products.update(product.id, { stock: newStock })
     await db.stockMovements.add({
       productId: product.id,
+      productName: product.name,
       type,
       quantity: Number(qty),
       reason,
       date: new Date().toISOString(),
+      userId: user?.id || null,
+      userName: user?.name || 'Unknown Operator',
     })
     onClose()
     setSaving(false)
@@ -70,6 +75,7 @@ export default function Inventory() {
   const [adjusting, setAdj]   = useState(null)
 
   const products = useLiveQuery(() => db.products.toArray(), [])
+  const movements = useLiveQuery(() => db.stockMovements.reverse().limit(25).toArray(), []) || []
 
   const filtered = (products || []).filter(p => {
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
@@ -181,6 +187,62 @@ export default function Inventory() {
           </table>
         </div>
       </Card>
+
+      {/* Stock Movement History */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <History size={18} className="text-navy-800" />
+          <h3 className="text-lg font-bold text-gray-900">Stock Movement History</h3>
+        </div>
+        <Card padding="p-0">
+          <div className="overflow-x-auto">
+            {movements.length === 0 ? (
+              <div className="p-8 text-center text-sm text-gray-400">
+                No stock adjustments logged yet. Adjust items above to see history.
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="text-left text-xs font-semibold text-gray-500 px-5 py-3">Date</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">Product</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">Type</th>
+                    <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">Qty</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">Reason</th>
+                    <th className="text-left text-xs font-semibold text-gray-500 px-5 py-3">Adjusted By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.map(m => (
+                    <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors text-sm">
+                      <td className="px-5 py-3 text-gray-500 font-mono text-xs">
+                        {new Date(m.date).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-gray-800">
+                        {m.productName || `Product ID: ${m.productId}`}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Badge variant={m.type === 'add' ? 'success' : 'danger'}>
+                          {m.type === 'add' ? 'Added' : 'Removed'}
+                        </Badge>
+                      </td>
+                      <td className={`px-3 py-3 text-right font-bold ${m.type === 'add' ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {m.type === 'add' ? '+' : '-'}{m.quantity}
+                      </td>
+                      <td className="px-3 py-3 text-gray-600 italic">
+                        {m.reason || 'None specified'}
+                      </td>
+                      <td className="px-5 py-3 font-medium text-gray-700">
+                        {m.userName || 'Unknown'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
+      </div>
 
       <Modal isOpen={!!adjusting} onClose={() => setAdj(null)} title="Adjust Stock" size="sm">
         {adjusting && <AdjustModal product={adjusting} onClose={() => setAdj(null)} />}

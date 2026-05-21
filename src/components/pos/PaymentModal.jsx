@@ -13,7 +13,7 @@ const METHODS = [
 
 export default function PaymentModal({ isOpen, onClose, total, onConfirm }) {
   const { settings } = useSettingsStore()
-  const currency = settings.currency
+  const currency = settings?.currency || 'KES'
 
   const [method, setMethod]       = useState('cash')
   const [step, setStep]           = useState('method') // method | details | processing | done
@@ -139,8 +139,8 @@ export default function PaymentModal({ isOpen, onClose, total, onConfirm }) {
           {method === 'mpesa' && (
             <div className="space-y-3">
               <div className="bg-green-50 rounded-xl p-3 text-xs text-green-700">
-                <p className="font-semibold mb-1">M-Pesa STK Push</p>
-                <p>Paybill: <strong>{settings.mpesaPaybill}</strong> · Account: <strong>{settings.mpesaAccount}</strong></p>
+                <p className="font-semibold mb-1">M-Pesa STK Push ({settings?.mpesaEnv || 'sandbox'})</p>
+                <p>Type: <strong>{settings?.mpesaType || 'Paybill'}</strong> · No: <strong>{settings?.mpesaPaybill || '174379'}</strong> · Ref: <strong>{settings?.mpesaAccount || 'NEXUSPOS'}</strong></p>
               </div>
               <label className="text-sm font-medium text-gray-700">Customer Phone Number</label>
               <input

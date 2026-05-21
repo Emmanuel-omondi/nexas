@@ -22,7 +22,7 @@ const navItems = [
   { to: '/settings',  icon: Settings,        label: 'Settings' },
 ]
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }) {
   const { user, logout, adminLogin, isAdminAuthenticated } = useAuthStore()
   const navigate = useNavigate()
   const [adminModal, setAdminModal] = useState(false)
@@ -56,9 +56,22 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   return (
     <>
+      {/* Mobile Drawer Overlay Backdrop */}
+      {mobileOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
+          onClick={onMobileClose}
+        />
+      )}
+
       <aside className={clsx(
-        'flex flex-col h-full bg-gradient-to-b from-navy-900 to-navy-800 transition-all duration-300 ease-in-out',
-        collapsed ? 'w-16' : 'w-60'
+        'flex flex-col h-full bg-gradient-to-b from-navy-900 to-navy-800 transition-all duration-300 ease-in-out z-50',
+        // Desktop behavior
+        'lg:relative lg:translate-x-0',
+        collapsed ? 'lg:w-16' : 'lg:w-60',
+        // Mobile behavior
+        'fixed inset-y-0 left-0 w-60 shadow-2xl lg:shadow-none',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       )}>
         {/* Logo */}
         <div className={clsx(
